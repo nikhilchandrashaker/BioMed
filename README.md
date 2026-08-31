@@ -21,17 +21,30 @@ model*. These pipelines deliberately lean on:
 
 ## Pipelines in this collection
 
-| Pipeline | Dataset | n | Features | Target | Techniques |
-|---|---|---|---|---|---|
-| `breast_cancer_pipeline.py` | UCI Breast Cancer (Ljubljana) | 286 | 9 | recurrence-events vs no-recurrence | Stratified K-Fold, LOO, Gradient Boosting |
-| `hepatitis_pipeline.py` **(new)** | UCI Hepatitis Domain | 155 | 19 | DIE vs LIVE | Stratified K-Fold, LOO, Gradient Boosting, median imputation |
-| `parkinsons_pipeline.py` **(new)** | UCI Oxford Parkinson's Disease Detection | 195 recordings / 32 subjects | 22 voice measures | healthy vs Parkinson's | Stratified K-Fold, **Subject-Grouped K-Fold** (leak check), LOO, Gradient Boosting |
-| `heart_failure_pipeline.py` | Heart Failure Clinical Records | 299 | 12 | DEATH_EVENT | Stratified K-Fold, LOO, Gradient Boosting |
-| `chronic_kidney_disease_pipeline.py` | UCI Chronic Kidney Disease | 400 | 24 | ckd vs notckd | Stratified K-Fold, LOO, Random Forest |
-| `lung_cancer_pipeline.py` | UCI Lung Cancer | 32 | 56 | cancer type (3-class) | LOO (small-n), Stratified K-Fold, SVM + RF ensemble, imputation |
-| `diabetes_pipeline.py` | UCI Diabetes Log Data | 70 patients | engineered | hypoglycemic episode | Time-series event feature engineering, Stratified K-Fold, LOO, Gradient Boosting |
-| `gallstone_pipeline.py` | UCI Gallstone | 319 | 38 | gallstone status | Stratified K-Fold, SMOTE, Random Forest |
-| `cervical_cancer_pipeline.py` | UCI Risk Factors Cervical Cancer | 858 | 36 | Biopsy (+ Hinselmann/Schiller/Citology) | Stratified K-Fold, SMOTE, Random Forest |
+Every pipeline below has been run end-to-end on real data; the AUC figures are
+from those runs (see each PNG for the full breakdown).
+
+| Pipeline | Dataset | n | Features | Target | Techniques | ROC-AUC (SKF / LOO) |
+|---|---|---|---|---|---|---|
+| `breast_cancer_pipeline.py` | UCI Breast Cancer (Ljubljana) | 286 | 9 | recurrence-events vs no-recurrence | Stratified K-Fold, LOO, Gradient Boosting | 0.647 / 0.649 |
+| `hepatitis_pipeline.py` **(new)** | UCI Hepatitis Domain | 155 | 19 | DIE vs LIVE | Stratified K-Fold, LOO, Gradient Boosting, median imputation | 0.828 / 0.836 |
+| `parkinsons_pipeline.py` **(new)** | UCI Oxford Parkinson's Disease Detection | 195 recordings / 32 subjects | 22 voice measures | healthy vs Parkinson's | Stratified K-Fold, **Subject-Grouped K-Fold** (leak check), LOO, Gradient Boosting | 0.967 naive / **0.710 subject-grouped** / 0.974 LOO |
+| `heart_failure_pipeline.py` | Heart Failure Clinical Records | 299 | 12 | DEATH_EVENT | Stratified K-Fold, LOO, Gradient Boosting | 0.888 / 0.894 |
+| `chronic_kidney_disease_pipeline.py` | UCI Chronic Kidney Disease | 400 | 24 | ckd vs notckd | Stratified K-Fold, LOO, Random Forest | 1.000 / 1.000 |
+| `lung_cancer_pipeline.py` | UCI Lung Cancer | 32 | 56 | cancer type (3-class) | LOO (small-n), Stratified K-Fold, SVM + RF ensemble, imputation | 0.699 macro (LOO) |
+| `diabetes_pipeline.py` | UCI Diabetes Log Data | 70 patients | engineered from time-series | hypoglycemic episode | Time-series event feature engineering, Stratified K-Fold, LOO, Gradient Boosting | 0.817 / 0.753 |
+| `gallstone_pipeline.py` | UCI Gallstone | 319 | 38 | gallstone status | Stratified K-Fold, SMOTE, Random Forest | 0.862 (SKF OOF) |
+| `cervical_cancer_pipeline.py` | UCI Risk Factors Cervical Cancer | 858 | 36 | Biopsy, other 3 diagnostic tests dropped to avoid leakage | Stratified K-Fold, SMOTE, Random Forest | 0.595 (SKF OOF) |
+
+A per-pipeline summary figure (ROC curves, confusion matrix, feature
+importances, per-fold AUC, class balance, metrics table) is saved next to
+each script — e.g. `chronic_kidney_disease_pipeline.png`.
+
+### Notes on a few results
+
+- **CKD ≈ 1.000 AUC** is not a bug — this is a well-known property of the UCI CKD dataset: `ckd` and `notckd` are almost perfectly separable on lab values like hemoglobin and specific gravity, so near-perfect scores are expected and widely reported in the literature.
+- **Cervical cancer ≈ 0.60 AUC** looks unremarkable next to papers reporting >0.9, but those numbers typically include `Hinselmann`, `Schiller`, and `Citology` — three other diagnostic tests — as *input features* to predict `Biopsy`, which is a form of leakage (using test results to predict a closely related test result). This pipeline deliberately drops all three and predicts `Biopsy` from lifestyle/history risk factors alone, which is the harder and more clinically meaningful version of the task.
+- **Breast cancer ≈ 0.65 AUC** on 9 coarse, binned categorical features (age brackets, tumor-size brackets, etc.) is in line with published baselines for this specific dataset — it's a genuinely hard, low-signal classic dataset, not a broken pipeline.
 
 ## New in this batch
 
@@ -92,12 +105,20 @@ GUI required (`matplotlib.use('Agg')`).
 
 ## Data sources
 
-All datasets are from the UCI Machine Learning Repository unless noted:
+All datasets originate from the UCI Machine Learning Repository unless noted;
+raw files were sourced from public GitHub mirrors of the original UCI
+releases where a local copy wasn't already on hand.
 
-- Hepatitis: G. Gong (Carnegie Mellon) via B. Cestnik, Jozef Stefan Institute, 1988. Cost-of-testing metadata (`hepatitis.cost/.delay/.expense/.group`) donated by Peter Turney, 1995.
-- Parkinson's Disease Detection: Little, McSharry, Hunter, Ramig (2008), *"Suitability of dysphonia measurements for telemonitoring of Parkinson's disease,"* IEEE Trans. Biomedical Engineering.
-- Parkinson's Telemonitoring (UPDRS regression variant, `parkinsons_updrs.data`, 5,875 recordings / 42 patients) is included in the raw data but not yet covered by a pipeline here — a natural next addition, predicting `motor_UPDRS` / `total_UPDRS` via regression instead of classification.
-- Breast Cancer, Heart Failure, CKD, Lung Cancer, Diabetes, Gallstone, Cervical Cancer: see individual UCI dataset pages for citations.
+- **Hepatitis**: G. Gong (Carnegie Mellon) via B. Cestnik, Jozef Stefan Institute, 1988. Cost-of-testing metadata (`hepatitis.cost/.delay/.expense/.group`) donated by Peter Turney, 1995.
+- **Parkinson's Disease Detection**: Little, McSharry, Hunter, Ramig (2008), *"Suitability of dysphonia measurements for telemonitoring of Parkinson's disease,"* IEEE Trans. Biomedical Engineering.
+  - Parkinson's Telemonitoring (UPDRS regression variant, `parkinsons_updrs.data`, 5,875 recordings / 42 patients) is included in the raw data but not yet covered by a pipeline here — a natural next addition, predicting `motor_UPDRS` / `total_UPDRS` via regression instead of classification.
+- **Breast Cancer (Ljubljana)**: Zwitter, M. & Soklic, M. (1988), Institute of Oncology, Ljubljana.
+- **Heart Failure Clinical Records**: Chicco, D. & Jurman, G. (2020), BMC Medical Informatics and Decision Making.
+- **Chronic Kidney Disease**: Rubini, L., Soundarapandian, P., & Eswaran, P. (2015).
+- **Lung Cancer**: Hong, Z.Q. & Yang, J.Y. — donor dataset, UCI ML Repository.
+- **Diabetes (time-series log data)**: Kahn, M., UCI ML Repository — 70 patients' logged blood-glucose, insulin, and lifestyle events.
+- **Gallstone**: Esen, I., Arslan, H., Aktürk, S., Gülşen, M., Kültekin, N., & Özdemir, O. (2024), *Medicine*, doi: 10.1097/md.0000000000037258.
+- **Cervical Cancer (Risk Factors)**: Fernandes, K., Cardoso, J., & Fernandes, J. (2017).
 
 ## Caveats
 
